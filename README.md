@@ -17,5 +17,9 @@ STL method
 
 2. Exponential Smoothing
 
+ETS (error, trend, seasonal)
+
+Additive, Multiplication
+
 3. Arima, Arimax, Sarima
 
