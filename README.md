@@ -1,7 +1,14 @@
 # Time Series - STAT674
 
-### Time Series plot
+### Time Series Features
 
+Lagged
+
+Autocorrelation
+
+Stationary, white noise
+
+Moving Average
 
 ### Decompostion
 
@@ -11,15 +18,15 @@ SEAT method
 
 STL method
 
-### Model
+### Forecast model
 
 1. Linear regression
 
 2. Exponential Smoothing
 
-ETS (error, trend, seasonal)
+   ETS (error, trend, seasonal)
 
-Additive, Multiplication
+   Additive, Multiplication
 
 3. Arima, Arimax, Sarima
 
