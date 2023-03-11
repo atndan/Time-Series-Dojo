@@ -1,0 +1,449 @@
+---
+title: "Stat. 674 Homework 6"
+author: "Dan Hoang - cu2107"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r, warning = FALSE, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tsibble)
+library(patchwork)
+library(fpp3)
+```
+
+# Exercise 9.1.
+
+*Figure 9.32 shows the ACFs for 36 random numbers, 360 random numbers and 1,000 random numbers.*
+
+## a. 
+
+*Explain the differences among these figures. Do they all indicate that the data are white noise?*
+
+The difference between these figures are the blue-dash interval and the lengths of spikes are different in each figure. 
+
+They are all indicate that data is white noise since the each correlogram show there is no autocorrelation, all the spikes are small and under the blue dash interval. 
+
+## b.
+
+*Why are the critical values at different distances from the mean of zero? Why are the autocorrelations different in each figure when they each refer to white noise?*
+
+The critical values are at different distances from zero because the data sets have different number of observations. The more observations in a data set, the less noise appears in the correlation estimates (spikes). Therefore the critical values for bigger data sets can be smaller in order to check if the data is not white noise.
+
+
+# Exercise 9.2. 
+
+*A classic example of a non-stationary series are stock prices. Plot the daily closing prices for Amazon stock (contained in gafa_stock), along with the ACF and PACF. Explain how each plot shows that the series is non-stationary and should be differenced.*
+
+
+```{r}
+gafa_stock %>%
+  filter(Symbol == "AMZN") %>%
+  gg_tsdisplay(Close, plot_type='partial') +
+  labs(title = "Amazon Closing Stock Price")
+```
+
+-   We can observe a increasing trend over the times with difference in variation though all periods of time. This indication a non-stationary time series. 
+
+-   From ACF plot, there are huge autocorrelation between lags, the the spikes are slowly decreasing not quickly frop to zero, this is sign of non-stationary. 
+
+-   The PACF has the first huge spike showing there is significant correlation of current price with yesterday price. All of these show that the time series is non-stationary. 
+
+
+# Exercise 9.6.
+
+*Simulate and plot some data from simple ARIMA models.*
+
+## a. Use the following R code to generate data from an AR(1) model with $\phi_1$  = 0.6, $\sigma^2$ = 1. 
+
+```{r}
+ ar1 <- function(phi, n = 100L) {
+    y <- numeric(n)
+    e <- rnorm(n)
+    for (i in 2:n) {
+      y[i] <- phi * y[i - 1] + e[i]
+    }
+    tsibble(idx = seq_len(n), y = y, index = idx)}
+```
+
+## b. 
+
+*Produce a time plot for the series. How does the plot change as you change $\phi_1$*
+
+```{r}
+p1 <- ar1(0.6) %>% autoplot(y) + labs(title=expression(paste(phi, "=0.6")))
+p2 <- ar1(0.95) %>% autoplot(y) + labs(title=expression(paste(phi, "=0.95")))
+p3 <- ar1(0.05) %>% autoplot(y) + labs(title=expression(paste(phi, "=0.05")))
+p4 <- ar1(-0.65) %>% autoplot(y) + labs(title=expression(paste(phi, "=-0.65")))
+p1+p2+p3+p4
+```
+
+changing $\phi_1$ will result in different time series pattern. when its close to zero, the pattern become white noise, when its close to 1, time series becomes random walk.
+
+## c. 
+
+*Write your own code to generate data from an MA(1) model with $\theta_1$ = 0.6 and $\sigma^2$ = 1 *
+
+```{r}
+ma1 <- function(theta, n = 100L) {
+  y <- numeric(n)
+  e <- rnorm(n)
+  for (i in 2:n) {
+    y[i] <- theta * e[i - 1] + e[i]}
+  tsibble(idx = seq_len(n), y = y, index = idx)}
+```
+
+
+
+## d. 
+
+*Produce a time plot for the series. How does the plot change as you change $\theta_1$ *
+
+```{r}
+p1 <- ma1(0.6) %>% autoplot(y) + labs(title=expression(paste(theta, "=0.6")))
+p2 <- ma1(0.95) %>% autoplot(y) + labs(title=expression(paste(theta, "=0.95")))
+p3 <- ma1(0.05) %>% autoplot(y) + labs(title=expression(paste(theta, "=0.05")))
+p4 <- ma1(-0.65) %>% autoplot(y) + labs(title=expression(paste(theta, "=-0.65")))
+p1 + p2 + p3 + p4
+```
+
+As $theta_1$ decreases, the frequency of the spikes increase. The shapes of the graphs do not change much as they have similar magnitude. It seems that as it decreases, it improves the centering around the mean.
+
+## e. 
+
+*Generate data from an ARMA(1,1) model with $phi_1$ = 0.6,  $\theta_1$ = 0.6, $sigma^2$ = 1*
+
+```{r}
+e <- rnorm(100)
+y <- numeric(100)
+for(i in 2:100)
+  y[i] <- e[i] + 0.6 * e[i-1] + 0.6 * y[i-1]
+arma1_1 <- tsibble(idx = seq_len(100), y = y, index = idx)
+arma1_1 %>% autoplot(y)
+```
+
+
+## f. 
+
+*Generate data from an AR(2) model with  $phi_1$ = -0.8,  $phi_1$ = -0.3,  $sigma^2$ = 1*
+
+```{r}
+y <- numeric(100)
+e <- rnorm(100)
+for(i in 3:100)
+  y[i] <- -0.8 * y[i-1] + 0.3 * y[i-2] + e[i]
+
+ar2 <- tsibble(idx = seq_len(100), y = y, index = idx)
+ar2 %>% autoplot(y)
+```
+
+## g. 
+
+*Graph the latter two series and compare them.*
+
+```{r}
+p1 <- arma1_1 %>% autoplot(y) +
+  labs(title = ("ARMA(1,1) model with $phi_1$ = 0.6,  $\theta_1$ = 0.6, $sigma^2$ = 1"))
+p2 <- ar2 %>% autoplot(y) +
+  labs(title = ("AR(2) model with  $phi_1$ = -0.8,  $phi_1$ = -0.3,  $sigma^2$ = 1"))
+p1 + p2 
+```
+
+The ARMA(1,1) model seems to be stationary as it appears to be random, while AR(2) appears to be non-stationary since we can observe the variance is not constant but increasing when x become bigger.  
+
+
+# Exercise 9.8. 
+
+*For the United States GDP series (from global_economy):*
+
+## a. 
+
+*if necessary, find a suitable Box-Cox transformation for the data;*
+
+
+```{r}
+global_economy %>% filter(Country == "United States") %>% autoplot(GDP) + ggtitle("GDP United State")
+```
+
+```{r}
+# Box-cox transformation
+lambda <- global_economy %>% filter(Country == "United States")%>% 
+    features(GDP, features = guerrero) %>%
+    pull(lambda_guerrero)
+lambda
+
+```
+
+```{r}
+global_economy %>% filter(Country == "United States")%>%
+    autoplot(box_cox(GDP, lambda)) + ggtitle("Transformed GDP United State")
+```
+
+The box-cox with lambda = 0.2819 may be helpful to improve the model. 
+
+
+## b. 
+
+*fit a suitable ARIMA model to the transformed data using ARIMA()*
+
+```{r}
+
+fit <- global_economy %>% filter(Country == "United States") %>%
+    model(ARIMA(box_cox(GDP, lambda)))
+report(fit)
+```
+
+
+
+# c. 
+
+*try some other plausible models by experimenting with the orders chosen;*
+
+```{r}
+ fit <- global_economy %>% filter(Country == "United States") %>%
+    model(
+      arima010 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(0, 1, 0)),
+      arima011 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(0, 1, 1)),
+      arima012 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(0, 1, 2)),
+      arima013 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(0, 1, 3)),
+      arima110 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 0)),
+      arima111 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 1)),
+      arima112 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 2)),
+      arima113 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 3)),
+      arima210 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(2, 1, 0)),
+      arima211 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(2, 1, 1)),
+      arima212 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(2, 1, 2)),
+      arima213 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(2, 1, 3)),
+      arima310 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(3, 1, 0)),
+      arima311 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(3, 1, 1)),
+      arima312 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(3, 1, 2)),
+      arima313 = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(3, 1, 3))
+)
+ fit %>%
+    glance() %>%
+    arrange(AICc) %>%
+    select(.model, AICc)
+```
+
+
+## d. 
+
+*choose what you think is the best model and check the residual diagnostics;*
+
+The model ARIMA(1,1,0) w/ drift has the lowest AICc, so ARIMA(1,1,0) w/ drift is the best model.
+
+
+```{r}
+#model ARIMA(1,1,0)
+us_economy <-  global_economy %>% filter(Country == "United States")
+best_fit <- us_economy %>%
+    model(ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 0))) 
+best_fit %>% report()
+```
+
+
+```{r}
+best_fit %>% gg_tsresiduals()
+```
+
+The residual histogram appears to be right skewed but the ACF plot looks good, there is no autocorrelation. Let's check the residuals with Ljung-Box test for more detail. 
+
+```{r}
+augment(best_fit) %>% features(.innov, ljung_box, dof = 2, lag = 10)
+```
+With p-value > 0.05, the residuals pass the Ljung-Box test. This suggests that the model adequately captures the autocorrelation in the time series, so we can use this model to process further steps. 
+
+
+## e. 
+
+*produce forecasts of your fitted model. Do the forecasts look reasonable?*
+
+
+```{r}
+best_fit %>%
+  forecast(h = 10) %>%
+  autoplot(us_economy) +  ggtitle("Forecasting GDP United State")
+```
+
+
+The forecast look reasonable. The trend will continues to increasing. 
+
+
+## f. 
+
+*compare the results with what you would obtain using ETS() (with no transformation).*
+
+
+```{r}
+us_economy %>%
+  model(Transformed = ARIMA(box_cox(GDP, lambda) ~ 1 + pdq(1, 1, 0)),
+        ETS  = ETS(GDP)) %>%
+  forecast(h = 10) %>% autoplot(us_economy)
+```
+
+
+The ETS forecast has the bigger interval and the trend is increasing less than transfomred model
+
+# Exercise 9.10. 
+
+*Choose a series from us_employment, the total employment in different industries in the United States.*
+
+## a. 
+
+*Produce an STL decomposition of the data and describe the trend and seasonality.*
+
+```{r}
+leisure <- us_employment %>%
+    filter(Title == "Leisure and Hospitality")
+ leisure %>% autoplot(Employed) + ggtitle("US monthly employment Leisure and Hospitality")
+```
+
+```{r}
+leisure %>%
+  model(STL(sqrt(Employed) ~ season(window=7))) %>%
+  components %>%
+  autoplot()
+```
+
+
+We can observe a change in variation in seasonal pattern. and the trend is kept increasing through the years.  
+
+## b. 
+
+*Do the data need transforming? If so, find a suitable transformation.*
+
+Since the variation got bigger after 1990s, we can try square root to stablelize. 
+
+```{r}
+leisure %>% features(Employed, guerrero)
+```
+
+
+
+## c. 
+
+*Are the data stationary? If not, find an appropriate differencing which yields stationary data.*
+
+```{r}
+leisure %>%
+    autoplot(sqrt(Employed) %>% difference(lag=12) %>% difference())
+```
+
+```{r}
+leisure %>%
+    gg_tsdisplay(sqrt(Employed) %>% difference(lag=12) %>% difference(), plot_type="partial")
+```
+
+The data appear to good after double differenced, series seem to be stationary, although in acf plot there is a huge spike at lag 12, overall data appear to be good. 
+
+
+## d. 
+
+*Identify a couple of ARIMA models that might be useful in describing the time series. Which of your models is the best according to their AICc values?*
+
+
+```{r}
+fit <- leisure %>%
+    model(
+      arima210011 = ARIMA(sqrt(Employed) ~ pdq(2,1,0) + PDQ(0,1,1)),
+      arima012011 = ARIMA(sqrt(Employed) ~ pdq(0,1,2) + PDQ(0,1,1))
+    )
+glance(fit)
+```
+
+The ARIMA (2,1,0)(0,1,1) model has better performance according to AICc values.  
+
+
+
+## e. 
+
+*Estimate the parameters of your best model and do diagnostic testing on the residuals. Do the residuals resemble white noise? If not, try to find another ARIMA model which fits better.*
+
+```{r}
+ fit %>%
+  select(arima210011) %>%
+  gg_tsresiduals()
+```
+
+The AFC does not appear good, there is big spike at lag 11 and many spikes out of the interval. The histogram is not in the perfect shape but is okay. Let's try other the models. 
+
+```{r}
+ fit <- leisure %>%
+    model(
+      arima210011 = ARIMA(sqrt(Employed) ~ pdq(2,1,0) + PDQ(0,1,1)),
+      arima012011 = ARIMA(sqrt(Employed) ~ pdq(0,1,2) + PDQ(0,1,1)),
+      auto = ARIMA(sqrt(Employed))
+    )
+  glance(fit)
+```
+
+```{r}
+  fit %>% select(auto) %>% report()
+```
+
+
+```{r}
+ fit %>%
+    select(auto) %>%
+    gg_tsresiduals()
+```
+
+
+The automatically selected ARIMA(2,1,2)(0,1,1) model does not improve AICc values comparing to our previous models, however, the diagnostic plot appear much better, ACF still have big spike on lag 11 but less out of bound spike. 
+
+
+
+## f.
+
+*Forecast the next 3 years of data. Get the latest figures from https://fred.stlouisfed.org/categories/11 to check the accuracy of your forecasts.*
+
+```{r}
+fc <- fit %>%
+  forecast(h = "3 years")
+fc %>%
+  filter(.model=="auto") %>%
+  autoplot(us_employment %>% filter(year(Month) > 2000)) 
+```
+
+```{r}
+update <- readr::read_csv("CEU7000000001.csv") %>%
+  mutate(
+    Month = yearmonth(DATE),
+    Employed = CEU7000000001
+  ) %>%
+  select(Month, Employed) %>%
+  as_tsibble(index=Month) %>%
+  filter(Month >= min(fc$Month))
+fc %>% accuracy(update)
+```
+
+```{r}
+ fc %>%
+    filter(.model=="auto") %>%
+    autoplot(us_employment %>% filter(year(Month) > 2000)) +
+    geom_line(data=update, aes(x=Month, y=Employed), col='red')
+```
+
+The initial forecasts look great, but then the pandemic hit US and lead to a huge drop on the employment in this industry.
+
+
+
+## g. 
+
+*Eventually, the prediction intervals are so wide that the forecasts are not particularly useful. How many years of forecasts do you think are sufficiently accurate to be usable?*
+
+On this the pandemic data, its about 5 months. Otherwise, in general perhaps 2–3 years.
+
+
+
+
+
+
+
+
+
+
+

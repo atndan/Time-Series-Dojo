@@ -1,0 +1,305 @@
+---
+title: "Stat. 674 Homework 5"
+author: "Dan Hoang - cu2107"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r, warning = FALSE, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tsibble)
+library(patchwork)
+library(fpp3)
+library(lubridate)
+library(fable)
+library(dplyr)
+```
+
+
+# Exercise 7.1.
+
+*Half-hourly electricity demand for Victoria, Australia is contained in vic_elec. Extract the January 2014 electricity demand, and aggregate this data to daily with daily total demands and maximum temperatures.*
+
+
+## a.
+
+*Plot the data and find the regression model for Demand with temperature as a predictor variable. Why is there a positive relationship?*
+
+
+
+```{r}
+jan14_vic_elec <- vic_elec %>%
+  filter(year(Time) == 2014 & month(Time) == 1) %>%
+  index_by(Date = as.Date(Time)) %>%
+  summarise(
+    Demand = sum(Demand),
+    Temperature = max(Temperature)) 
+jan14_vic_elec <- jan14_vic_elec[-1,]
+
+p1 <- ggplot(jan14_vic_elec, aes(x = Date, y = Demand)) + geom_line(color = "#69b3a2")
+p2 <- ggplot(jan14_vic_elec, aes(x = Date, y = Temperature)) + geom_line()
+p3 <- ggplot(jan14_vic_elec, aes(x = Temperature, y = Demand)) + geom_point() + geom_smooth(method = "lm")
+p1 + p2 + p3 + plot_layout(ncol = 1)
+```
+We can observe a positive linear trend between Temperature and Demand, this can be explain as when the temperature increases, the demand for electricity increases due to higher demand of cooling using electric devices such as air conditioner, fan.
+
+## b. 
+
+*Produce a residual plot. Is the model adequate? Are there any outliers or influential observations?*
+
+```{r}
+fit <- jan14_vic_elec %>% model(TSLM(Demand ~ Temperature))
+fit %>% gg_tsresiduals()
+```
+
+
+The time plot shows some changing variation over time, but is otherwise relatively unremarkable. There is an outlier in the end of Jan.
+
+The histogram shows that the residuals have been right skewed, which can affect the prediction intervals.
+
+## c. 
+
+*Use the model to forecast the electricity demand that you would expect for the next day if the maximum temperature was 15C and compare it with the forecast if the with maximum temperature was 35C Do you believe these forecasts? The following R code will get you started:*
+
+```{r}
+p1 <- jan14_vic_elec %>% model(TSLM(Demand ~ Temperature)) %>%
+  forecast(new_data(jan14_vic_elec, 1) %>% mutate(Temperature = 15)) %>%
+  autoplot(jan14_vic_elec) + ggtitle("15C temp")
+p2 <- jan14_vic_elec %>% model(TSLM(Demand ~ Temperature)) %>%
+  forecast(new_data(jan14_vic_elec, 1) %>% mutate(Temperature = 35)) %>%
+  autoplot(jan14_vic_elec) + ggtitle("35C temp")
+p1 + p2 +plot_layout(ncol = 1)
+```
+
+The forecast seem good with 35C temp, hot weather will increase the electric demand which is reasonable for cooling. However, with temp 15C, should be not that low Demand since cold weather also need electric for heat, the reason is that there is not much date with low temperature for model to train.
+
+## d. 
+
+*Give prediction intervals for your forecasts.*
+
+```{r}
+jan14_vic_elec %>%
+  force_tz("America/Los_Angeles") %>% 
+  model(TSLM(Demand ~ Temperature)) %>%
+  forecast(new_data(jan14_vic_elec, 1) %>% mutate(Temperature = 15))  %>%
+  hilo() %>%
+  select(-.model)
+
+```
+
+## e. 
+
+*Plot Demand vs Temperature for all of the available data in vic_elec aggregated to daily total demand and maximum temperature. What does this say about your model?*
+
+```{r}
+vic_elec %>%
+  index_by(Date = as_date(Time)) %>%
+  summarise(Demand = sum(Demand), Temperature = max(Temperature)) %>%
+  ggplot(aes(x = Temperature, y = Demand)) +
+  geom_point()
+```
+
+We can observe a parabola shape in stead of linear, So our model TSLM would be not efficient in this case. 
+
+\newpage 
+
+# Exercise 2.
+
+*Data set olympic_running contains the winning times (in seconds) in each Olympic Games sprint, middle-distance and long-distance track events from 1896 to 2016.*
+
+## a. 
+
+*Plot the winning time against the year for each event. Describe the main features of the plot.*
+
+```{r}
+ggplot(olympic_running, aes(x = Year, y = Time, colour = Sex)) + geom_line() +
+  facet_wrap(~Length, scales = "free_y", nrow = 5)
+```
+
+Overall the fastest running times for all of the events are decreasing over time, which means people are running faster through the years.
+
+## b. 
+
+*Fit a regression line to the data for each event. Obviously the winning times have been decreasing, but at what average rate per year?*
+
+```{r}
+fit <- olympic_running %>%
+  model(TSLM(Time ~ trend()))
+tidy(fit)
+```
+
+Each type of race has a difference coefficient, from summary table, with event 100 meters for men, winner run faster 0.05 second in average per year.
+
+## c. 
+
+*Plot the residuals against the year. What does this indicate about the suitability of the fitted lines?*
+
+```{r}
+augment(fit) %>%
+  ggplot(aes(x = Year, y = .innov, colour = Sex)) +
+  geom_line() +
+  geom_point(size = 1) +
+  facet_wrap(~Length, scales = "free_y", nrow = 5)
+```
+
+
+Residuals appear not to be random, So our Linear model seems not to be reasonable. 
+
+## d. 
+
+*Predict the winning time for each race in the 2020 Olympics. Give a prediction interval for your forecasts. What assumptions have you made in these calculations?*
+
+```{r}
+fit %>%
+  forecast(h = 1) %>%
+  mutate(PI = hilo(Time, 95)) %>%
+  select(-.model)
+
+```
+
+To compute prediction listed on the summary table above, we have several assumptions.
+
+- There is no autocorrelation in the errors. 
+
+- Residuals are normally distribute, should be randomly scattered with no systematic patterns.
+
+- The variance of the residuals should be constant
+`
+
+
+\newpage
+
+# Exercise 8.5.
+
+*Data set global_economy contains the annual Exports from many countries. Select one country to analyse.*
+
+## a. 
+
+*Plot the Exports series and discuss the main features of the data.*
+
+
+```{r}
+global_economy %>% filter(Country == "United States") %>% autoplot(Exports) + ggtitle("USA Exports")
+```
+
+There is increasing trend on export of goods and services in USA, there is some fluctuation through decades, bottom in 1985s and 2005s and bounce back after that.  
+
+## b. 
+
+*Use an ETS(A,N,N) model to forecast the series, and plot the forecasts.*
+
+```{r}
+US_export <- global_economy %>% filter(Country == "United States") %>% drop_na()
+fit <- US_export %>%
+  model( ETS(Exports ~ error('A') + trend('N') + season('N') ))
+fit  %>% forecast(h = 10) %>% autoplot(US_export) + ggtitle("US Exports Forecast ETS(A,N,N) ")
+```
+
+## c. 
+
+*Compute the RMSE values for the training data.*
+
+```{r}
+accuracy(fit)
+```
+
+RSME for training data is 0.6319. 
+
+
+## d. 
+
+*Compare the results to those from an ETS(A,A,N) model. (Remember that the trended model is using one more parameter than the simpler model.) Discuss the merits of the two forecasting methods for this data set.*
+
+
+```{r}
+fit1 <- US_export %>%
+  model( `ANN` = ETS(Exports ~ error('A') + trend('N') + season('N')),
+         `AAN` = ETS(Exports ~ error('A') + trend('A') + season('N')))
+accuracy(fit1)
+```
+
+from accuracy summary, we have RMSE of AAN is lower, which means AAN is more accurate model in this case.
+
+## e. 
+
+*Compare the forecasts from both methods. Which do you think is best?*
+
+
+```{r}
+fit1 %>% forecast(h =10) %>% autoplot(US_export) + ggtitle("AAN vs ANN")
+```
+
+we can observe that AAN prediction is better since it follows the increasing trend, which is more reasonable comparing to ANN.
+
+## f. 
+
+*Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.*
+
+
+```{r}
+fc <- fit1 %>% forecast(h = 1) %>% mutate(intervals = hilo(Exports, 95)) 
+as.data.frame(fc)
+```
+
+
+```{r}
+# manual compute
+# 95% prediction interval for the first forecast: ETS(A,N,N)
+acc <- accuracy(fit1)
+y_hat <- fc$.mean[1]
+lower <- y_hat - (acc$RMSE[1] * 1.96)
+upper <- y_hat + (acc$RMSE[1] * 1.96)
+# 95% prediction interval for the first forecast: ETS(A,N,N)
+y_hat2 <- fc$.mean[2]
+lower2 <- y_hat2 - (acc$RMSE[2] * 1.96)
+upper2 <- y_hat2 + (acc$RMSE[2] * 1.96)
+method = c("ANN", "AAN")
+acc_summary <- data.frame(method)
+acc_summary$lower <- c(lower, lower2)
+acc_summary$upper <- c(upper, upper2)
+acc_summary
+```
+
+The interval from manual compute and from R produced are almost the same, just a very small difference.
+
+\newpage 
+
+# Exercise 8.7.
+
+
+*Find an ETS model for the Gas data from aus_production and forecast the next few years. Why is multiplicative seasonality necessary here? Experiment with making the trend damped. Does it improve the forecasts?*
+
+```{r}
+aus_production %>%
+  autoplot(Gas) +ggtitle("Australia gas production")
+```
+
+
+```{r}
+fit <- aus_production %>%
+  model(add = ETS(Gas ~ error("A") + trend("A") + season("N")),
+        mult = ETS(Gas ~ error("M") + trend("A") + season("M")),
+        mult_dp = ETS(Gas ~ error("A") + trend("Ad") + season("M")))
+fc <- fit %>% forecast(h = "3 years")
+fc %>% autoplot(aus_production, level = NULL) + ggtitle("Australia gas production")
+```
+
+```{r}
+accuracy(fit)
+```
+
+
+
+Multiplicative seasonality is necessary since we can observe the seasonal variations are changing proportional to the level of the series.
+
+From the forecast plot, there is a small difference between multiplicative seasonality with trend damped and without trend damped. Visually, its hard to say whether trend damped improve the forecasts. However if we check the RSME accuracy from train data, the model with trend damped result a better performance.
+
+
+
+
+
+
+

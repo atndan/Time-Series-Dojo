@@ -1,0 +1,211 @@
+---
+title: "Stat. 674 Midterm"
+author: "Dan Hoang - cu2107"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r, warning = FALSE, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tsibble)
+library(patchwork)
+library(fpp3)
+library(lubridate)
+```
+
+
+*The midterm investigates three time series datasets, simulated white noise, hh_budget and aus_retail.  The questions ask about the ACF, decomposition methods, forecasting, and the use of training and test datasets to measure forecast accuracy.*
+
+# Question 1.
+
+*Simulate a white noise time series with 250 data points.  Plot the time series and the ACF of the time series.  Is there are trend?  Is there a seasonal pattern?  Are there any meaningful statistically significant correlations? Use a seed of 1234.*
+
+
+```{r}
+set.seed(1234)
+df <- data.frame(
+  time = seq(as.Date("2022-01-01"), by = "day", length.out = 250),
+  value = rnorm(250))
+df <- tsibble(df)
+df %>% autoplot(color = "#69b3a2") + 
+  ggtitle("White Noise Simulate")
+
+```
+
+```{r}
+ACF(df, y = value) %>% autoplot()
+```
+
+The data shows there is no trend, values fluctuate around mean = 0. From ACF plot we can observe there is no autocorrelation, most the lag spikes are under blue-dash line, close to 0 which means there is no significant correlations.
+
+\newpage
+
+# Question 2.
+
+*Try the X11, SEATS, and STL Decomposition methods on the Household Budget data, hh_budget to estimate the tends in Wealth for the different countries in the dataset.*
+
+## a. 
+
+*Which methods work? If not, why does the method fail?*
+
+```{r}
+hh_budget %>%
+  autoplot(Wealth)
+```
+
+```{r, error=TRUE}
+# X11 Decomposition
+hh_budget %>%
+  model(x11 = X_13ARIMA_SEATS(Wealth ~ x11())) %>%
+  components() %>%
+  autoplot() +
+  labs(title ="X-11 Decomposition")
+```
+
+```{r, error=TRUE}
+# SEATS Decomposition
+hh_budget %>%
+  model(x11 = X_13ARIMA_SEATS(Wealth ~ seats())) %>%
+  components() %>%
+  autoplot() +
+  labs(title ="SEATS Decomposition")
+```
+
+
+```{r}
+#STL Decompostion
+p1 <- hh_budget %>% filter(Country == "Australia") %>%
+  model(STL(Wealth ~ trend() + season(window = "periodic"), robust = TRUE)) %>% components() %>%
+  autoplot() + ggtitle("Australia")
+p2 <- hh_budget %>% filter(Country == "Canada") %>% 
+  model(STL(Wealth ~ trend() + season(window = "periodic"), robust = TRUE)) %>% components() %>% 
+  autoplot() + ggtitle("Canada")
+p3 <- hh_budget %>% filter(Country == "Japan") %>% 
+  model(STL(Wealth ~ trend() + season(window = "periodic"), robust = TRUE)) %>% components() %>% 
+  autoplot() + ggtitle("Japan")
+p4 <- hh_budget %>% filter(Country == "USA") %>% 
+  model(STL(Wealth ~ trend() + season(window = "periodic"), robust = TRUE)) %>% components() %>% 
+  autoplot() + ggtitle("USA")
+p1 +p2
+```
+
+
+```{r}
+p3 + p4
+```
+
+X11, SEATS do not work due to the observation data is by year, these two model can work only with monthly or quarterly data.
+STL decompositon still works in this case since in STL we can choose the trend window.
+
+## b.
+
+*Is there are seasonal component in these times series?*
+
+The data show no seasonal component, it fluctuates with no clear pattern, only increasing trends are observed in all countries.
+
+\newpage
+
+# Question 3.
+
+*Try different forecasting methods to forecast 12 steps into the future the Turnover in the Liquor Industry in New South Wales, Australia using the aus_retail dataset.*
+
+*Try the following: MEAN, RW, TSLM, TSLM (+ season()), NAIVE, SNAIVE*
+
+## a. 
+
+*Try all of the methods and determine a best method by visual inspection of forecasts for one year.*
+
+```{r}
+aus_retail_sw <- aus_retail %>% filter(State == "New South Wales" & str_detect(Industry, "^L"))
+aus_retail_sw %>% autoplot(Turnover)
+```
+
+
+```{r}
+retail_fit <- aus_retail_sw %>%
+  model(
+    Mean = MEAN(Turnover),
+    Naive = NAIVE(Turnover),
+    SNaive = SNAIVE(Turnover),
+    Drift = RW(Turnover ~ drift()), 
+    TSLM = TSLM(Turnover ~ trend()),
+    TSLM_S = TSLM(Turnover ~ trend() + season())
+  )
+retail_fit %>% forecast(h = 12) %>% autoplot(aus_retail_sw, level = NULL) +
+  labs(y = "$Million AUD",
+       title = "Turnover in the Liquor Industry in New South Wales, Australia") +
+  guides(colour = guide_legend(title = "Forecast"))
+```
+
+```{r}
+retail_fit <- aus_retail_sw %>%
+  model(
+    SNaive = SNAIVE(Turnover),
+    TSLM_S = TSLM(Turnover ~ trend() + season())
+  )
+retail_fit %>% forecast(h = 12) %>% autoplot(aus_retail_sw, level = NULL) +
+  labs(y = "$Million AUD",
+       title = "TSLM_S and SNAIVE") +
+  guides(colour = guide_legend(title = "Forecast"))
+```
+
+
+From forecast plots, Seasonal Naive and TSLM with seasonal appear to be good forecasts in this case. 
+However, if to choose one, Seasonal Naive is visually observed to be the best method since its trend is closest to the previous years.
+
+## b. 
+
+*Now split the data into training and testing subsets of the data.  Use  the data until 2017 as the training data.  Using the method you have selected measure its error for forecasting the testing data, which is to 2018*
+
+
+```{r}
+train <- aus_retail_sw %>%
+  filter(year(Month) <= 2017) 
+test <- aus_retail_sw %>%
+  filter(year(Month) > 2017) 
+#check if data have been split appropriately
+autoplot(aus_retail_sw, Turnover) +
+autolayer(train, Turnover, colour = "red") +
+  ggtitle("check if data have been split appropriately")
+```
+
+
+```{r}
+#Seasonal NAIVE
+liquor_fit <- train %>%
+   model(SNaive = SNAIVE(Turnover))
+liquor_fit %>% gg_tsresiduals()
+```
+
+The ACF shows there are autocorrelation between lags and residuals plot follow a normal distribution. So far, SNAIVE appears to be a good choice. Next we will compute the validation.
+
+
+```{r}
+#forecast
+fc1 <- liquor_fit %>%
+  forecast(h = 12)
+fc1 %>%
+  autoplot(bind_rows(train, test),
+    level = NULL) +
+  guides(colour = guide_legend(title = "Forecast")) +
+  ggtitle("forecasting 2018 vs actual 2018 with SNAIVE")
+```
+
+```{r}
+#Validation
+
+fc2 <- train %>% model(TSLM_S = TSLM(Turnover ~ trend() + season())) %>% forecast(h = 12)
+fc3 <- train %>% model(Drift = RW(Turnover ~ drift())) %>% forecast(h = 12)
+fc4 <- train %>% model(TSLM = TSLM(Turnover ~ trend())) %>% forecast(h = 12)
+
+ac1 <- accuracy(fc1, aus_retail_sw)
+ac2 <- accuracy(fc2, aus_retail_sw)
+ac3 <- accuracy(fc3, aus_retail_sw)
+ac4 <- accuracy(fc4, aus_retail_sw)
+rbind(ac1,ac2,ac3,ac4)
+```
+
+From the validation table, Seasonal NAIVE has the best performance in all accuracy measurements (RMSE, MAE, MAPE,...) we can confirm the previous visually conclusion is correct that SNAIVE is the best forecasting method in this case.

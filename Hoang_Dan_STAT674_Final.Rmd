@@ -1,0 +1,197 @@
+---
+title: "Stat. 674 Final"
+author: "Dan Hoang - cu2107"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+```{r, warning = FALSE, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tsibble)
+library(patchwork)
+library(fpp3)
+library(forecast)
+```
+
+# Exercise 7.4.
+
+
+*The data set souvenirs concerns the monthly sales figures of a shop which opened in January 1987 and sells gifts, souvenirs, and novelties. The shop is situated on the wharf at a beach resort town in Queensland, Australia. The sales volume varies with the seasonal population of tourists. There is a large influx of visitors to the town at Christmas and for the local surfing festival, held every March since 1988. Over time, the shop has expanded its premises, range of products, and staff.*
+
+## a. 
+
+*Produce a time plot of the data and describe the patterns in the graph. Identify any unusual or unexpected fluctuations in the time series.*
+
+```{r}
+souvenirs %>% autoplot(color="#69b3a2") + ggtitle("Sales for a souvenir shop Queensland, Australia") + labs(x = "")
+```
+
+The data shows a seasonal pattern with huge spike at christmas and small spike around March for the surfing festival each year. The spikes become bigger every year except in 1991. Overall, there is a growth trend. 
+
+## b. 
+
+*Explain why it is necessary to take logarithms of these data before fitting a model.*
+
+```{r, fig.height = 5, fig.width = 10}
+p1 <- ggplot(souvenirs, aes(x = Sales)) + geom_histogram(fill="#69b3a2", color="#e9ecef", alpha=0.9) + 
+  labs(title = "histogram of sales", x = "Sales")
+p2 <- ggplot(souvenirs, aes(x = log(Sales))) + geom_histogram(fill="#69b3a2", color="#e9ecef", alpha=0.9) + 
+  labs(title = "Taking logarithms", x = "Sales")
+p1 + p2 + plot_layout(nrow  = 1)
+```
+
+
+The histogram appears to be heavy right-skewed, taking logarithm will help data become normal distribution, which will help improve the model and forecasting later. 
+
+## c. 
+
+*Fit a regression model to the logarithms of these sales data with a linear trend, seasonal dummies and a “surfing festival” dummy variable.*
+
+
+```{r}
+souvenirs2<- ts(souvenirs$Sales,start=c(1987,1), end=c(1993,12), frequency=12)
+log.souvenirs = log(souvenirs2)
+# surfing festival Dummy 
+dummy.fest = rep(0, length(souvenirs2))
+dummy.fest[seq_along(dummy.fest)%%12 == 3] = 1
+dummy.fest[3] = 0
+dummy.fest = ts(dummy.fest, freq = 12, start=c(1987,1))
+new.data = data.frame(log.souvenirs, dummy.fest)
+
+fit = tslm(log.souvenirs ~ trend + season + dummy.fest, data=new.data)
+summary(fit)
+```
+
+
+## d. 
+
+*Plot the residuals against time and against the fitted values. Do these plots reveal any problems with the model?*
+
+```{r, fig.height = 5, fig.width = 10}
+p1 <- autoplot(fit$residuals) + ggtitle("residuals")
+ab <- data.frame(fit$residuals, fit$x)
+p2 <- ggplot(ab, aes(x= fit.x, y = fit.residuals)) + geom_point() + labs(x = "fitted")
+p1 + p2
+```
+The residuals plot appear to be in good shape, it's random and no specific pattern.
+
+## e. 
+
+*Do boxplots of the residuals for each month. Does this reveal any problems with the model?*
+
+```{r}
+boxplot(residuals(fit)~cycle(residuals(fit))) 
+```
+
+The boxplot show some fluctuation of variance of residuals on periods August, September, October. This reveals that our model is not good enough to catch all seasonal details in data. 
+
+## f. 
+
+*What do the values of the coefficients tell you about each variable?*
+
+```{r}
+fit$coefficients
+```
+
+From coefficient values reveal the direction and magnitude of the variable toward the outcome. For example, the coefficient of season 12 is the highest among other season, this means with a same proportion change among seasons, season12 will result the most change in sales volumes.  
+
+## g.
+
+*What does the Ljung-Box test tell you about your model?*
+
+
+```{r}
+Box.test(fit$residuals, lag = 10, type = "Ljung-Box")
+```
+
+Ljung-box test result a p-value lower than 0.05, which implies that there is auto correlation in the model’s residuals. This means that the model can still be improved.
+
+## h. 
+
+*Regardless of your answers to the above questions, use your regression model to predict the monthly sales for 1994, 1995, and 1996. Produce prediction intervals for each of your forecasts.*
+
+```{r}
+forecast_data = data.frame(dummy.fest = rep(0, 36))
+preds = forecast(fit, newdata=forecast_data)
+ts_pred <- ts(preds$mean, freq = 12, start=c(1994,1))
+ts_pred %>% autoplot() + ggtitle("Forecasting 1994, 1995, and 1996")
+```
+
+```{r}
+#intervals
+preds
+```
+
+
+## i. 
+
+*How could you improve these predictions by modifying the model?*
+
+```{r}
+#Box-cox test
+souvenirs %>% features(Sales, features = guerrero) %>%
+  pull(lambda_guerrero)
+```
+
+
+As we mentioned earlier on Ljung-box test result the model can be developed. And the box-cox test result suggest a transformation with lambda 0.00211 would maximize performance for the model. 
+
+
+\newpage 
+
+# Exercise 9.7.
+
+*Consider aus_airpassengers, the total number of passengers (in millions) from Australian air carriers for the period 1970-2011.*
+
+## a. 
+
+*Use ARIMA() to find an appropriate ARIMA model. What model was selected. Check that the residuals look like white noise. Plot forecasts for the next 10 periods.*
+
+```{r}
+aus_airpassengers %>% autoplot() + ggtitle("Air Transport Passengers Australia") + labs(x = "")
+```
+
+
+```{r}
+fit <- aus_airpassengers %>%
+  model(ARIMA(Passengers))
+report(fit)
+```
+
+The time series has a increasing trend with no seasonal pattern. The function ARIMA() automatically select the optimal model with ARIMA(0,2,1). Now let check the residuals from the model. 
+
+```{r}
+fit %>% gg_tsresiduals()
+```
+
+The residuals appear to be white noise although there are two outliers on 1889 and 2009, residuals appear to be random. ACF plot shows there is no autocorrelation on residuals. Histogram is in good shape to be normal distribution.
+
+
+```{r}
+detach(package:forecast)
+fit %>% forecast(h=10) %>%
+  autoplot(aus_airpassengers) + ggtitle("Forecasting Air Transport Passengers Australia") + labs(x = "")
+```
+
+The trend is expected to continue growing rapidly and will pass 90 millions passengers annually in next 10 years.  
+
+## b. 
+
+*Write the model in terms of the backshift operator.*
+
+Model ARIMA(0,2,1)
+
+$$ (1 - B)^2 y_t = c + (1 + \theta_1B)\epsilon_t   $$
+
+$y_t$ is the time series at time t.
+
+B is the backshift operator.
+
+$\theta_1$ is the coefficients of the 1st lagged error terms.
+
+$\epsilon_t$ is the error term at time t.
+
+

@@ -1,0 +1,140 @@
+---
+title: "STAT674 - Quiz 1"
+author: "Dan Hoang - cu2107"
+output:
+  pdf_document: default
+---
+
+
+```{r}
+library(pacman)
+p_load(tidyverse, fpp3, ggplot2, patchwork, contactdata)
+```
+
+
+# Question 1.
+
+*How many countries are there on Earth?  (You should look this number up on Google or on Wikipedia.)  How may Countries are there in the dataset?  Why do the numbers differ?*
+
+In general, there are 195 countries according to wikipedia, but in the datasets there are 263 countries, this is because global_economy is the data Economic indicators featured by the World Bank from 1960 to 2017 and the term *country*, used interchangeably with *economy*, does not imply political independence but refers to any territory for which authorities report separate social or economic statistics.
+
+
+```{r}
+data(global_economy)
+global_economy %>% distinct(Country)  
+```
+
+
+# Question 2.
+
+*Create a new variable GDP_per_capita. Show the first few values of the new variable.*
+
+```{r}
+global_economy["GDP_per_capita"]  = global_economy['GDP']/ global_economy['Population']
+head(global_economy)
+```
+
+
+# Question 3.
+
+*Plot the time series data for Population for each of these countries: United States, Brasil, Canada, Mexico, Russia, Israel, and Japan.  What do you notice about the population of Russian and Japan?*
+
+
+Russia and Japan have a low rate of population growth and the trend after 2000s starts to slightly decrease. 
+
+
+```{r}
+global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan" )) %>%
+  autoplot(Population)
+```
+
+\newpage
+
+# Question 4.
+
+*Plot the time series data for GDP for each of these countries: United States, Brasil, Canada, Mexico, Russia, Israel, and Japan.  How does the GDP of Japan compare to the GDP of the United States?*
+
+
+GDP of Japan is bloomming from 1980s to 1995s, after that, the trend start to fluctuate sideway. GPD of US continues increasing significantly through all the years, and there is a huge gap between US and Japan after 2000s. 
+
+
+```{r}
+global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan" )) %>%
+  autoplot(GDP)
+```
+
+\newpage
+
+# Question 5.
+
+*Plot the time series data for GDP_per_capita for each of these countries: United States, Brasil, Canada, Mexico, Russia, Israel, and Japan.  How does the GDP per capita differ for Russia, Mexico and Brasil?*
+
+
+Russia, Mexico and Brasil appear to have a low GDP per capita comparing to the other countries. Russia and Brazil are growing slowly, got a recession around 2000s and start to growth back after 2010s. 
+
+
+```{r}
+global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan" )) %>%
+  autoplot(GDP_per_capita)
+```
+
+\newpage
+
+# Question 6.
+
+*Remake all of your plots including China.  How does China compare to the United States in each plot?*
+
+China has the biggest population as well as the growth rate comparing to other countries, bigger than US many times. However, the GDP per capita is lowest comparing to other countries. After 2010s period, the total GDP of China start to increase strongly. 
+
+
+```{r}
+p1 <- global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan", "China" )) %>%
+  autoplot(Population) + theme(legend.position = "none")
+p2 <- global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan", "China" )) %>%
+  autoplot(GDP)
+p1 +p2 
+```
+
+```{r}
+global_economy %>% 
+  filter(Country %in% c("United States","Brazil", "Canada", "Mexico", "Russian Federation", "Israel", "Japan", "China" )) %>%
+  autoplot(GDP_per_capita)
+```
+
+# Question 7.
+
+*Does it make sense to run a Seasonal Decomposition with these data?  Why or why not, explain.*
+
+
+The timeline is from 1960 to 2017, which is a huge period of time and there is no clear seasonal trend observed. There is no need to run Seasonal Decomposition with these data.
+
+
+
+# Question 8.
+
+## a.
+
+*Explain what a tsibble is?*
+    
+A *tsibble* is a data object that is specifically designed for time series analysis. It is a type of data frame that is constructed to represent time series data in a tidy format, with each row representing a unique observation and each column representing a variable. 
+
+One of the advantages of using a tsibble is that it allows for easy manipulation and analysis of time series data using a consistent set of tools, regardless of the underlying format of the data. 
+
+## b.
+
+*Explain what a mable is?*
+    
+A *mable* is short for "multivariate time series table", which is a data object designed to represent and work with multivariate time series data. In contrast to a tsibble, which represents univariate time series data, a mable can hold multiple time series, each of which may have several variables or dimensions.
+
+One of the advantages of using a mable is that it allows for the efficient computation of various statistical measures on multivariate time series data, such as cross-correlation and cross-covariance. It is also designed to work well with the *fable* package, which is a collection of tools for forecasting time series data.
+
+## c.
+
+*Explain what a fable is?*
+
+*fable* is a package in R that provides a collection of tools for time series forecasting and modeling. It is built on top of the tsibble and mable packages, which are designed to represent and work with time series data in a tidy and efficient manner. The fable package provides a consistent framework for working with time series data, with a focus on producing accurate and interpretable forecasts. Some of the key features of the fable package include: modeling, forecasting, visualization, extension.

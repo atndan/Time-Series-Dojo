@@ -1,0 +1,108 @@
+---
+title: "Stat. 674 Project"
+author: "Dan Hoang - cu2107"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+
+*Install the COVID19 Data Hub R package. Select at least two countries to work with of interest to you and make forecasts of the number of cases for the next 12 months.*
+
+*Build the following models: Build a linear regression model using TSLM(). Build an appropriate exponential smoothing model.* 
+
+*In your Quarto Notebook show the the fitted values on a time plot and show your forecasts with errors.*
+
+```{r, warning = FALSE, message=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tsibble)
+library(patchwork)
+library(COVID19)
+library(fpp3)
+```
+
+
+
+```{r, warning = FALSE, message=FALSE,}
+covid <- covid19(c("United States", "Vietnam"))
+covid <- covid %>% as_tsibble(key = "administrative_area_level_1", index = "date")
+head(covid)
+```
+
+
+```{r, }
+ggplot(covid, aes(x = date, y = confirmed, color = administrative_area_level_1)) + geom_line() +
+  scale_y_continuous( labels = scales::comma) + 
+  labs(color = "Country", title = "Number of cases Covid 19 ", x = "", y ="cases confirmed")
+```
+
+**United State** has a rapid increasing trend over the years. At the present time, the graph does not show any sign that the case number will decrease. And from the graph, we can observe a linear trend. 
+
+**Vietnam** line show a small amount of Covid case due to its small population. There is a rapid increase in Spring 2022 and start to be stable after that. With this stable trend around 2023, we can try damped trend on Exponential Smoothing to make a forecast. 
+
+\newpage 
+## Linear regression vs exponential smoothing.
+
+```{r}
+covid <- covid %>% select(confirmed) %>% drop_na()
+fit <- covid %>%
+  model( TSLM = TSLM( confirmed ~ trend()), 
+         MAA = ETS(confirmed ~ error("M") + trend("A")  + season('A')),
+         AAN = ETS(confirmed ~ error("A") + trend("A")  + season('N')),
+         ANN = ETS(confirmed ~ error("A") + trend("N") + season("N")),
+         Trend_damped = ETS(confirmed ~ error("M") + trend("Ad")  + season('N')))
+fc <- fit %>% forecast(h = 360)
+fc %>% autoplot(covid, level = NULL) +  labs(title = "Covid cases forecast", x = "", y ="") +
+  scale_y_continuous( labels = scales::comma)
+```
+
+Visually, Exponential Smoothing has better forecast comparing to linear regression in both US and Vietnam. 
+
+From Vietnam graph, there is not much difference among exponential smoothing methods (AAN, MAA, AAdN). The Holt-Winters' multiplicative damped trend (AAdN) appear to be the good prediction. Let's check more detail with accuracy measures on training data and diagnostic graphs. 
+
+
+
+
+## Accuracy Measure.
+
+```{r}
+accuracy(fit) %>% select(administrative_area_level_1,.model, RMSE, MAE)  
+```
+From summary table, the exponential smoothing methods have increase the performance comparing to linear regression.
+
+For United State, the multiplicative ETS (MAA) model gave the lowest RMSE, so let's choose this model to for prediction. And for Vietnam, the Holt-Winters' multiplicative damped trend (MAdA) has the best result. A damped trend is slightly improve performance in this case. 
+
+Now let's run diagnostic and re-run the forecast using the two best model for US and Vietnam. 
+
+## Diagnostic Exponential Smoothing.
+
+```{r}
+fit1 <- covid %>% filter(administrative_area_level_1 == "United States") %>%
+  model(ETS(confirmed ~ error("M") + trend("A")  + season('A'))) 
+fit1 %>% gg_tsresiduals() +ggtitle("ETS diagnostic US")
+```
+
+```{r}
+fit2 <- covid %>% filter(administrative_area_level_1 == "Vietnam") %>%
+  model(ETS(confirmed ~ error("M") + trend("Ad")  + season('N'))) 
+fit2 %>% gg_tsresiduals() +ggtitle("ETS diagnostic Vietnam")
+```
+
+Both ACF graphs show strong autocorrelations between lags. In both countries, the residuals do not variate too much, expect for period early 2020, there are big fluctuations in residuals when pandemic just started. 
+
+\newpage 
+## Forecasting again with choosen exponential smoothing model. 
+
+```{r}
+p1 <- fit1  %>% forecast(h = 360) %>% autoplot(covid, level = NULL) +  
+  labs(title = "US Covid cases forecast", x = "", y ="") + scale_y_continuous( labels = scales::comma)
+p2 <- fit2  %>% forecast(h = 360) %>% autoplot(covid, level = NULL) +  
+  labs(title = "Vietnam Covid cases forecast", x = "", y ="") + scale_y_continuous( labels = scales::comma)
+p1 + p2 + plot_layout(ncol = 1)
+```
+
+The final model forecast the number Covid19 cases in United State will keep increasing in the next 12 months and will hit 120k in mid 2024. Meanwhile, Vietnam has been forecasted to be stable, no fluctuation and the total number is kept under 12k in the next year.
+
