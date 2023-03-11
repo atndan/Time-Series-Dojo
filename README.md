@@ -30,3 +30,19 @@ STL method
 
 3. Arima, Arimax, Sarima
 
+
+### Assignment
+
+https://rpubs.com/danhoang/1014039
+
+https://rpubs.com/danhoang/1014042
+
+https://rpubs.com/danhoang/1014043
+
+https://rpubs.com/danhoang/1014044
+
+https://rpubs.com/danhoang/1014046
+
+https://rpubs.com/danhoang/1014047
+
+https://rpubs.com/danhoang/1014048
